@@ -1,0 +1,37 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Particle
+{
+    float2 Position;
+    float2 Velocity;
+    float2 Acceleration;
+};
+
+//Textures And Parameters
+RWStructuredBuffer<Particle> Particles;
+RWTexture2D<float4> FlowFieldTexture;
+float2 FieldSize;
+float ParticleSpeed;
+float TimeDelta;
+
+[numthreads(1024,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Get Particle
+    Particle currentParticle = Particles[id.x];
+    
+    //Update Particle
+    currentParticle.Acceleration += FlowFieldTexture[currentParticle.Position].xy * 2 - 1;
+    currentParticle.Acceleration = clamp(currentParticle.Acceleration, -0.1, 0.1);
+    currentParticle.Velocity += currentParticle.Acceleration * ParticleSpeed * TimeDelta;
+    currentParticle.Velocity = clamp(currentParticle.Velocity, -100, 100);
+    currentParticle.Position += currentParticle.Velocity * TimeDelta;
+
+    //Clamp Position
+    currentParticle.Position.x = clamp(currentParticle.Position.x, 0, FieldSize.x);
+    currentParticle.Position.y = clamp(currentParticle.Position.y, 0, FieldSize.y);
+
+    //Set In Buffer
+    Particles[id.x] = currentParticle;
+}

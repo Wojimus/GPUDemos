@@ -1,0 +1,54 @@
+{
+    "name": "FlowFieldControls",
+    "maps": [
+        {
+            "name": "UI",
+            "id": "e2c25899-a009-46f9-9c25-6de666040327",
+            "actions": [
+                {
+                    "name": "HideUI",
+                    "type": "Button",
+                    "id": "6472e005-bc3d-4d63-b146-ff433a33d134",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "EscapeMenu",
+                    "type": "Button",
+                    "id": "17160f6d-47a7-4077-b753-09d07aa13520",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "9aa44791-54ce-45c5-93ab-51a5c5dec47f",
+                    "path": "<Keyboard>/f1",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "HideUI",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "334381f9-d487-4b9b-be93-c1ced4967a00",
+                    "path": "<Keyboard>/escape",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "EscapeMenu",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": []
+}

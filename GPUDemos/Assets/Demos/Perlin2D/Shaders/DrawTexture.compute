@@ -1,0 +1,35 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Particle
+{
+    float2 Position;
+    float2 Velocity;
+    float2 Acceleration;
+};
+
+//Textures And Parameters
+RWStructuredBuffer<Particle> Particles;
+RWTexture2D<float4> ParticleTexture;
+int ParticleSize;
+
+[numthreads(1024,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Get Particle
+    Particle currentParticle = Particles[id.x];
+
+    //Draw Particle
+    ParticleTexture[currentParticle.Position.xy] = float4(0.5, 0.5, 0.5, 0);
+    
+    for (int x = -ParticleSize; x <= ParticleSize; x++)
+    {
+        for (int y = -ParticleSize; y <= ParticleSize; y++)
+        {
+            float2 drawPosition = currentParticle.Position + float2(x, y);
+            float3 colour = float3((currentParticle.Position.x / 1920), (abs(currentParticle.Velocity.x) +
+                abs(currentParticle.Velocity.y)) / 100 , (currentParticle.Position.y / 1080));
+            ParticleTexture[drawPosition] = float4(colour.x, 0, colour.y, 0);
+        }
+    }
+}

@@ -1,0 +1,130 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Boid {
+    float3 position;
+    float3 direction;
+    float3 velocity;
+};
+
+//Buffers And Textures
+RWStructuredBuffer<Boid> Boids;
+RWTexture3D<float4> VelocityTexture;
+RWTexture3D<float4> VelocityTextureBuffer;
+float FieldSize;
+int ViewRadius;
+int AvoidRadius;
+float Alignment;
+float Cohesion;
+float Seperation;
+float CentrePull;
+float TimeDelta;
+float Speed;
+
+[numthreads(1024,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Get Current Boid
+    Boid boid = Boids[id.x];
+
+    //Field Centre (Used Later)
+    float3 fieldCentre = float3(FieldSize / 2, FieldSize / 2, FieldSize / 2);
+
+    //------------Extract Values-----------
+    //Values To Extract
+    float3 boidCOM = float3(0, 0, 0); //Centre Of Mass Of Boid Vector
+    float3 boidVel = float3(0, 0, 0); //Boid Velocity Vector
+    float3 boidSep = float3(0, 0, 0); //Boid Separation Vector
+    int boidNum = 0; //Number Of Boids Visible
+
+    //Search Lookup Texture
+    for (int x = -ViewRadius; x <= ViewRadius; x++)
+    {
+        for (int y = -ViewRadius; y <= ViewRadius; y++)
+        {
+            for (int z = -ViewRadius; z <= ViewRadius; z++)
+            {          
+                //Get Sample
+                float3 samplePos = boid.position + float3(x, y, z);
+                float4 velSample = VelocityTexture[samplePos];
+
+                //Add To BoidNum
+                boidNum += velSample.w;
+                
+                //Add Results To Boid Centre Of Mass
+                boidCOM += (samplePos * velSample.w);
+ 
+                //Add Results To Boid Velocity
+                boidVel += (length(velSample.xyz) * velSample.w);
+                
+                //Seperation
+                if (abs(x) <= AvoidRadius && abs(y) <= AvoidRadius && abs(z) <= AvoidRadius)
+                {
+                    boidSep -= ((samplePos - boid.position) * velSample.w);
+                }
+            }
+        }
+    }
+    
+    //Remove This Boid From Values
+    boidCOM -= boid.position;
+    boidVel -= boid.velocity;
+    boidNum -= 1;
+
+    //------------Acceleration-----------
+
+    //Calculate Acceleration
+    float3 acceleration = float3(0, 0, 0);
+    if (boidNum > 0)
+    {
+        //Find Needed Values
+        float3 boidCentre = boidCOM / boidNum;
+        float3 boidVelocity = boidVel / boidNum;
+        
+        acceleration += (boidCentre - boid.position) * Cohesion;
+        acceleration += (boidVelocity - boid.direction) * Alignment;// / Speed;
+        acceleration += boidSep * Seperation;
+    }
+
+    //Centre Pull
+    acceleration += (fieldCentre - boid.position) * CentrePull;
+
+    //Multiply By Speed
+    acceleration *= Speed;
+
+    //------------Border Force-----------
+    const float borderForceZone = 4;
+    float distanceToCentre = distance(fieldCentre, boid.position);
+    
+    //If Close To The Border
+    if (distanceToCentre > (FieldSize / 2) - borderForceZone)
+    {
+        acceleration += (fieldCentre - boid.position) * distanceToCentre * Speed * 0.05;
+    }
+
+    //------------UPDATE VALUES-----------
+
+    //Update Velocity
+    boid.velocity += acceleration * TimeDelta;
+
+    //Update Direction
+    boid.direction = normalize(boid.velocity);
+
+    //Calculate Speed And Clamp
+    float speed = length(boid.velocity);
+    speed = clamp(speed, Speed * 0.5, Speed);
+
+    //Recalculate Velocity
+    boid.velocity = boid.direction * speed;
+    
+    //Update Position
+    boid.position += boid.velocity * TimeDelta;
+
+    //------------Set VALUES-----------
+
+    //Update Boid
+    Boids[id.x] = boid;
+
+    //Update Velocity Buffer
+    VelocityTextureBuffer[boid.position.xyz] += float4(boid.velocity, 1);
+}

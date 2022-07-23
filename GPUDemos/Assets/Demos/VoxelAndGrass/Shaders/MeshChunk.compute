@@ -1,0 +1,313 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+//Represents a voxel so we can access attributes with appropriate names
+struct Voxel
+{
+    int3 voxelPos;
+    uint voxelID;
+    bool isTransparent;
+    bool isCustomMesh;
+};
+
+//Structure to hold the relevant data we need to calculate and export
+//Stride = 16 + 4 = 20
+struct Face
+{
+    int4 facePos; //Contains xyz voxel position and w as the face number 0-5 (front-right)
+    uint textureIndex; //Texture Index Of Face
+};
+
+//A Vertex And Its Data
+//Stride = 12 + 8 = 20
+struct Vertex
+{
+    float3 position;
+    float2 uv;
+};
+
+//Triangle To Render
+//Stride = 20 * 3 + 12 + 8 = 80
+struct Triangle
+{
+    Vertex verts[3];
+    float3 normal;
+    float2 uv4;
+};
+
+//INPUTS
+int3 chunkPos;
+int3 chunkSize;
+StructuredBuffer<int> transparentIDs;
+StructuredBuffer<int> customMeshIDs;
+StructuredBuffer<int> textureIndexes;
+StructuredBuffer<int> voxelMap;
+StructuredBuffer<int> voxelMapFront;
+StructuredBuffer<int> voxelMapBack;
+StructuredBuffer<int> voxelMapLeft;
+StructuredBuffer<int> voxelMapRight;
+
+//OUTPUTS
+AppendStructuredBuffer<Triangle> opaqueTriangles;
+AppendStructuredBuffer<Triangle> transparentTriangles;
+
+//FUNCTIONS
+int3 Get3DPos(uint index)
+{
+    int z = index / (chunkSize.x * chunkSize.y);
+    index -= (z * chunkSize.x  * chunkSize.y);
+    int y = index / chunkSize.x ;
+    int x = index % chunkSize.x ;
+
+    return int3(x, y, z);
+}
+
+int GetIndexFromPos(int3 pos)
+{
+    return pos.x + chunkSize.x * (pos.y + chunkSize.y * pos.z);
+}
+
+int GetTextureIndex(min16uint voxelID, uint faceID)
+{
+    return textureIndexes[(voxelID - 1) * 6 + faceID];
+}
+
+bool IsCustomMesh(min16uint voxelID)
+{
+    uint customMeshNum, stride;
+    customMeshIDs.GetDimensions(customMeshNum, stride);
+    for (int i = 0; i < customMeshNum; i++)
+    {
+        if (voxelID == customMeshIDs[i])
+            return true;
+    }
+
+    return false;
+}
+
+bool IsTransparent(min16uint voxelID)
+{
+    uint transparentMeshNum, stride;
+    transparentIDs.GetDimensions(transparentMeshNum, stride);
+    for (int i = 0; i < transparentMeshNum; i++)
+    {
+        if (voxelID == transparentIDs[i])
+            return true;
+    }
+
+    return false;
+}
+
+Voxel CreateVoxel(uint index, uint voxelMapID)
+{
+    //Get VoxelID
+    uint voxelID = 0;
+    if (voxelMapID == 0) voxelID = voxelMap[index];
+    else if (voxelMapID == 1) voxelID = voxelMapFront[index]; //Front
+    else if (voxelMapID == 2) voxelID = voxelMapBack[index]; //Back
+    else if (voxelMapID == 3) voxelID = 0; //Top
+    else if (voxelMapID == 4) voxelID = 1; //Bottom
+    else if (voxelMapID == 5) voxelID = voxelMapLeft[index]; //Left
+    else if (voxelMapID == 6) voxelID = voxelMapRight[index]; //Right
+    
+    //Get Other Info
+    int3 voxelPos = Get3DPos(index);
+    bool isTransparent = IsTransparent(voxelID);
+    bool isCustomMesh = IsCustomMesh(voxelID);
+
+    //Create Voxel And Return
+    Voxel createdVoxel;
+    createdVoxel.voxelPos = voxelPos;
+    createdVoxel.voxelID = voxelID;
+    createdVoxel.isTransparent = isTransparent;
+    createdVoxel.isCustomMesh = isCustomMesh;
+
+    return createdVoxel;
+}
+
+uint GetCorrectVoxelMap(int3 voxelPos)
+{
+    if (voxelPos.z < 0) return 1;
+    if (voxelPos.z >= chunkSize.z) return 2;
+    if (voxelPos.y >= chunkSize.y) return 3;
+    if (voxelPos.y < 0) return 4;
+    if (voxelPos.x < 0) return 5;
+    if (voxelPos.x >= chunkSize.x) return 6;
+    return 0;
+}
+
+int3 AdjustVoxelPos(int3 voxelPos)
+{
+    if (voxelPos.x < 0) voxelPos.x = chunkSize.x - 1;
+    else if (voxelPos.x >= chunkSize.x) voxelPos.x = 0;
+    if (voxelPos.y < 0) voxelPos.y = chunkSize.y - 1;
+    else if (voxelPos.y >= chunkSize.y) voxelPos.y = 0;
+    if (voxelPos.z < 0) voxelPos.z = chunkSize.z - 1;
+    else if (voxelPos.z >= chunkSize.z) voxelPos.z = 0;
+    return voxelPos;
+}
+
+Voxel GetAdjacentVoxel(Voxel currentVoxel, int faceID)
+{
+    //Get AdjacentVoxelPos
+    int3 adjacentVoxelPos;
+    if (faceID == 0) adjacentVoxelPos = currentVoxel.voxelPos + int3(0, 0, -1);
+    else if (faceID == 1) adjacentVoxelPos = currentVoxel.voxelPos + int3(0, 0, 1);
+    else if (faceID == 2) adjacentVoxelPos = currentVoxel.voxelPos + int3(0, 1, 0);
+    else if (faceID == 3) adjacentVoxelPos = currentVoxel.voxelPos + int3(0, -1, 0);
+    else if (faceID == 4) adjacentVoxelPos = currentVoxel.voxelPos + int3(-1, 0, 0);
+    else if (faceID == 5) adjacentVoxelPos = currentVoxel.voxelPos + int3(1, 0, 0);
+
+    //Adjust For Edge Case - Being Out Of Bounds Of The Main VoxelMap
+    uint voxelMapID = GetCorrectVoxelMap(adjacentVoxelPos);
+    uint adjustedVoxelIndex = GetIndexFromPos(AdjustVoxelPos(adjacentVoxelPos));
+
+    //Return Voxel
+    return CreateVoxel(adjustedVoxelIndex, voxelMapID);
+}
+
+void AppendFaceTriangles(Face face, bool transparent)
+{
+    //Calculate World Offset
+    float3 offset = float3(chunkPos.x, chunkPos.y, chunkPos.z) + float3(face.facePos.x, face.facePos.y, face.facePos.z);
+
+    //Skip Bedrock Bottom
+    if (offset.y <= 0 && face.facePos.w == 3) return;
+    
+    //Vertices
+    Vertex vertex1 = (Vertex)0;
+    Vertex vertex2 = (Vertex)0;
+    Vertex vertex3 = (Vertex)0;
+    Vertex vertex4 = (Vertex)0;
+    float3 normal = float3(0, 0, 0);
+    switch (face.facePos.w)
+    {
+    case 0: //Front Face
+        normal = float3(0, 0, -1);
+        vertex1.position = float3(0, 0, 0);
+        vertex2.position = float3(0, 1, 0);
+        vertex3.position = float3(1, 1, 0);
+        vertex4.position = float3(1, 0, 0);
+        break;
+    case 1: //Back Face
+        normal = float3(0, 0, 1);
+        vertex1.position = float3(1, 0, 1);
+        vertex2.position = float3(1, 1, 1);
+        vertex3.position = float3(0, 1, 1);
+        vertex4.position = float3(0, 0, 1);
+        break;
+    case 2: //Top Face
+        normal = float3(0, 1, 0);
+        vertex1.position = float3(0, 1, 0);
+        vertex2.position = float3(0, 1, 1);
+        vertex3.position = float3(1, 1, 1);
+        vertex4.position = float3(1, 1, 0);
+        break;
+    case 3: //Bottom Face
+        normal = float3(0, -1, 0);
+        vertex1.position = float3(0, 0, 1);
+        vertex2.position = float3(0, 0, 0);
+        vertex3.position = float3(1, 0, 0);
+        vertex4.position = float3(1, 0, 1);
+        break;
+    case 4: //Left Face
+        normal = float3(-1, 0, 0);
+        vertex1.position = float3(0, 0, 1);
+        vertex2.position = float3(0, 1, 1);
+        vertex3.position = float3(0, 1, 0);
+        vertex4.position = float3(0, 0, 0);
+        break;
+    case 5: //Right Face
+        normal = float3(1, 0, 0);
+        vertex1.position = float3(1, 0, 0);
+        vertex2.position = float3(1, 1, 0);
+        vertex3.position = float3(1, 1, 1);
+        vertex4.position = float3(1, 0, 1);
+        break;
+    }
+
+    //Adjust Vertex Positions
+    vertex1.position += offset;
+    vertex2.position += offset;
+    vertex3.position += offset;
+    vertex4.position += offset;
+
+    //UVs
+    vertex1.uv = float2(0, 0);
+    vertex2.uv = float2(0, 1);
+    vertex3.uv = float2(1, 1);
+    vertex4.uv = float2(1, 0);
+
+    //Create Triangles (2 per face)
+    Triangle triangle1 = (Triangle)0;
+    Triangle triangle2 = (Triangle)0;
+
+    //Triangle Vertices
+    triangle1.verts[0] = vertex1;
+    triangle1.verts[1] = vertex2;
+    triangle1.verts[2] = vertex4;
+    triangle2.verts[0] = vertex2;
+    triangle2.verts[1] = vertex3;
+    triangle2.verts[2] = vertex4;
+    
+    //Normals
+    triangle1.normal = normal;
+    triangle2.normal = normal;
+
+    //UV4
+    triangle1.uv4 = float2(face.textureIndex, 0);
+    triangle2.uv4 = float2(face.textureIndex, 0);
+    
+    //Add Triangles
+    if (transparent)
+    {
+        transparentTriangles.Append(triangle1);
+        transparentTriangles.Append(triangle2);
+    }
+    else
+    {
+        opaqueTriangles.Append(triangle1);
+        opaqueTriangles.Append(triangle2);
+    }
+}
+
+[numthreads(8,4,8)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Get Correct Index
+    int index = GetIndexFromPos(id);
+
+    //Get Current Voxel
+    Voxel currentVoxel = CreateVoxel(index, 0);
+
+    //Precursor Checks - If Current Voxel Is Air - Skip
+    if (currentVoxel.voxelID == 0) return;
+
+    //For Each Face
+    for (int i = 0; i < 6; i++)
+    {
+        //Create Face
+        Face currentFace;
+        currentFace.facePos = int4(currentVoxel.voxelPos, i);
+        currentFace.textureIndex = GetTextureIndex(currentVoxel.voxelID, i);
+
+        //Precursor Checks - If Current Voxel Is Custom Mesh - Skip
+        if (currentVoxel.isCustomMesh) return;
+        
+        //Precursor Checks - If Current Voxel Is Transparent - Add All Faces To Transparent Faces
+        if (currentVoxel.isTransparent)
+        {
+            AppendFaceTriangles(currentFace, true);
+            continue;
+        }
+
+        //Get Adjacent Voxel
+        Voxel adjacentVoxel = GetAdjacentVoxel(currentVoxel, i);
+
+        //If Adjacent Voxel is Air Or Transparent Or Custom Mesh Add To Active Faces
+        if (adjacentVoxel.voxelID == 0 || adjacentVoxel.isTransparent || adjacentVoxel.isCustomMesh)
+        {
+            AppendFaceTriangles(currentFace, false);
+        }            
+    }
+}

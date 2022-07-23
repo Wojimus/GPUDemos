@@ -1,0 +1,84 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+//A Vertex And Its Data
+//Stride = 12 + 8 = 20
+struct Vertex
+{
+    float3 position;
+    float2 uv;
+};
+
+//Triangle To Render
+//Stride = 20 * 3 = 60
+struct Triangle
+{
+    Vertex verts[3];
+};
+
+//INPUT
+int triangleCount;
+int grassPerTile;
+float grassWidth;
+float grassHeight;
+float grassCurveMultiplier;
+float3 chunkPos;
+RWStructuredBuffer<int3> grassPositions;
+
+//OUTPUT
+AppendStructuredBuffer<Triangle> triangles;
+
+//RNG
+uint wang_hash(uint seed)
+{
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+[numthreads(128,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Out Of Bounds Check
+    if (id.x >= triangleCount) return;
+    
+    //Find Grass Base Position
+    int3 basePosition = grassPositions[id.x / grassPerTile];
+
+    //Get New Position
+    float xOffset = wang_hash(id.x + id.y + id.z) / 4294967295.0;
+    float zOffset = wang_hash((id.x + id.y + id.z) * 2) / 4294967295.0;
+    float3 position = float3(basePosition.x + xOffset, basePosition.y, basePosition.z + zOffset) + chunkPos;
+
+    //Create Vertices
+    Vertex vert1;
+    Vertex vert2;
+    Vertex vert3;
+
+    //UVs
+    vert1.uv = float2(0, 0);
+    vert2.uv = float2(0.5f, 1);
+    vert3.uv = float2(1, 0);
+
+    //Get XZ Ratio
+    float xzRatio = wang_hash((id.x + id.y + id.z) * 3) / 4294967295.0;
+    float xWidth = grassWidth * xzRatio;
+    float zWidth = grassWidth - xWidth;
+    float xTopOffset = ((wang_hash((id.x + id.y + id.z) * 4) / 4294967295.0) * 2 - 1) * grassCurveMultiplier;
+    float zTopOffset = ((wang_hash((id.x + id.y + id.z) * 5) / 4294967295.0) * 2 - 1) * grassCurveMultiplier;
+
+    //Positions
+    vert1.position = position + float3(-xWidth, 0, -zWidth);
+    vert2.position = position + float3(xTopOffset, grassHeight, zTopOffset);
+    vert3.position = position + float3(xWidth, 0, zWidth);
+
+    //Create And Append Triangle
+    Triangle tri = (Triangle)0;
+    tri.verts[0] = vert1;
+    tri.verts[1] = vert2;
+    tri.verts[2] = vert3;
+    triangles.Append(tri);
+}

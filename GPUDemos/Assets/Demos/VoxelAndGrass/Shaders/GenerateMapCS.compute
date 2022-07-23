@@ -1,0 +1,95 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#include "Noise/noise2D.hlsl"
+
+//INPUT
+//Map
+int3 mapSize;
+float2 mapOffset;
+//Ground
+int groundBlock;
+int secondaryGroundBlock;
+float secondaryGroundThreshold;
+float secondaryGroundScale;
+int2 secondaryGroundOffset;
+int undergroundBlock;
+//Rocks
+int3 rockTypes;
+float rockThreshold;
+float rockScale;
+int2 rockOffset;
+
+//OUTPUT
+RWStructuredBuffer<int> voxelMap;
+
+//FUNCTIONS
+float Get2DNoise(float2 position, float scale, int2 offset)
+{
+    //Return noise
+    return (snoise(float2((position.x + 0.1f) / (mapSize.x * scale) + offset.x + mapOffset.x, (position.y + 0.1f) / (mapSize.z * scale) + offset.y + mapOffset.y)) + 1) / 2;
+}
+
+int ConvertTo1DIndex(int3 pos)
+{
+    return pos.x + mapSize.x * (pos.y + mapSize.y * pos.z);
+}
+
+int GenerateVoxelAtPos(int3 pos)
+{
+    //Underground
+    if (pos.y == 0)
+    {
+        return undergroundBlock;
+    }
+    //Ground
+    if (pos.y == 1)
+    {
+        //Calculate Secondary Ground Noise
+        float secondaryGroundNoise = Get2DNoise(float2(pos.x, pos.z), secondaryGroundScale, secondaryGroundOffset);
+
+        if (secondaryGroundNoise > secondaryGroundThreshold)
+        {
+            return secondaryGroundBlock;
+        }
+        return groundBlock;
+    }
+    //Above Ground
+    if (pos.y == 2)
+    {
+        //Rocks
+        float rockNoise = Get2DNoise(float2(pos.x, pos.z), rockScale, rockOffset);
+
+        if (rockNoise > rockThreshold)
+        {
+            return rockTypes[0];
+        }
+        else
+        {
+            return 3;
+        }
+        
+        return 0;
+    }
+    //Sky
+    if (pos.y == 3)
+    {
+        return 0;
+    }
+
+    //Default
+    return 0;
+}
+
+[numthreads(8,4,8)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Get Buffer Index
+    int bufferIndex = ConvertTo1DIndex(id);
+
+    //Get Voxel
+    int voxelID = GenerateVoxelAtPos(id);
+
+    //Set Voxel
+    voxelMap[bufferIndex] = voxelID;
+}

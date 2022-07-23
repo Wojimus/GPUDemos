@@ -1,0 +1,14 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+//Textures
+RWTexture3D<float4> VelocityTexture;
+RWTexture3D<float4> VelocityTextureBuffer;
+
+[numthreads(10,10,10)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Transfer Velocity And Clear Buffer
+    VelocityTexture[id.xyz] = VelocityTextureBuffer[id.xyz];
+    VelocityTextureBuffer[id.xyz] = float4(0, 0, 0, 0);
+}

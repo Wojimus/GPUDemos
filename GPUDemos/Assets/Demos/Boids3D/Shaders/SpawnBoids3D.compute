@@ -1,0 +1,94 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+struct Boid {
+    float3 position;
+    float3 direction;
+    float3 velocity;
+};
+
+//Buffers And Textures
+RWStructuredBuffer<Boid> Boids;
+RWStructuredBuffer<int> Seeds;
+RWTexture3D<float4> VelocityTexture;
+float FieldSize;
+
+
+//Functions
+uint Wang_Hash(uint seed)
+{
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+
+float3 GeneratePosition(uint seed)
+{
+    //Get base xyz 0-1
+    float x = Wang_Hash(seed) / 4294967295.0;
+    float y = Wang_Hash(seed / 2) / 4294967295.0;
+    float z = Wang_Hash(seed / 3) / 4294967295.0;
+    float3 direction = float3(x, y, z); //XYZ Are Between 0-1
+
+    //Convert Position To Unit Vector
+    direction = direction * 2 - 1; //-1 - 1
+    direction = normalize(direction);
+
+    //Field Is A Sphere So We Have To Limit Distance From Center To The Radius
+    float3 center = float3(FieldSize / 2, FieldSize / 2, FieldSize / 2);
+    float radius = FieldSize / 2;
+    float outerOffset = 2; //Stops Boids Spawning Directly On Field Edge
+
+    //Generate Distance From Centre
+    float randDistance = (Wang_Hash(seed / 4) / 4294967295.0) * (radius - outerOffset);
+
+    //Offset From Centre By Direction
+    float3 position = center + (direction * randDistance);
+
+    //Return
+    return position;
+}
+
+float3 GenerateDirection(uint seed)
+{
+    //Get base xyz 0-1
+    float x = Wang_Hash(seed / 4) / 4294967295.0;
+    float y = Wang_Hash(seed / 5) / 4294967295.0;
+    float z = Wang_Hash(seed / 6) / 4294967295.0;
+
+    //Map to -1 and 1
+    x = x * 2 - 1;
+    y = y * 2 - 1;
+    z = z * 2 - 1;
+
+    //Convert and return
+    return float3(x, y, z);
+}
+
+[numthreads(1024,1,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Get Seed
+    int seed = Seeds[id.x];
+
+    //Generate Position And Direction
+    float3 pos = GeneratePosition(seed);
+    float3 dir = GenerateDirection(seed);
+
+    //Create Boid
+    Boid boid;
+
+    //Set Values
+    boid.position = pos;
+    boid.direction = dir;
+    boid.velocity = dir;
+
+    //Set Boid
+    Boids[id.x] = boid;
+
+    //Set Direction Texture (Direction And Boid Count)
+    VelocityTexture[pos] += float4(boid.velocity, 1);
+}

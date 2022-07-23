@@ -1,0 +1,68 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-8363384648577926545
+MonoBehaviour:
+  m_ObjectHideFlags: 11
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 5
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: FieldSphere
+  m_Shader: {fileID: -6465566751694194690, guid: 330d00dea0bee2e48b8b65a645d960a0, type: 3}
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - Texture2D_5bd4a641a54d402c80b2bdf6442b7f19:
+        m_Texture: {fileID: 2800000, guid: b7d6c0b2b8eff9c458786bd932cbd020, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - Texture2D_67190bfabac54be596e8dca00d749091:
+        m_Texture: {fileID: 2800000, guid: 35171414fffe3874c96878f9e56449dc, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_Lightmaps:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_LightmapsInd:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_ShadowMasks:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - Vector1_25287de43c834f409efcbcd88e6310a8: 0
+    - Vector1_713f7930bcd24f8f851cfc30edc45b66: 3
+    - Vector1_90e2f1c71ad842b396b66ff4cd56fcd7: 5
+    - Vector1_c4053a98a6604d5da1b514f20f7810f9: 4
+    - Vector1_d2fdbfb4fff240f1a4b081a9044d43d2: 2.23
+    - _QueueControl: 0
+    - _QueueOffset: 0
+    m_Colors:
+    - Color_141f8f044d1b4cb9a3390bfd15747c93: {r: 0.2458615, g: 0.6192512, b: 0.8018868, a: 0}
+    - Color_e1a3d3bcea714c6f842a5d61227a453a: {r: 0.78431374, g: 0.30588236, b: 1.4980392, a: 0}
+  m_BuildTextureStacks: []

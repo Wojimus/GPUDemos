@@ -1,0 +1,38 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+// Noise
+#include "Noise\noise3D.hlsl"
+
+//Textures And Parameters
+RWTexture2D<float4> FlowFieldTexture;
+float2 FieldSize;
+float FieldStrength;
+float2 Offset;
+float Scale;
+float Time;
+
+[numthreads(32,32,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+    //Generate Noise Coordinates
+    float2 noiseCoord = float2(
+        (id.x + Offset.x) / FieldSize.x * Scale,
+        (id.y + Offset.y) / FieldSize.y * Scale
+        );
+    
+    //Generate Direction
+    float2 dirNoise = float2(
+        snoise(float3(noiseCoord, Time)) * FieldStrength,
+        snoise(float3(noiseCoord * 2 + 10000, Time)) * FieldStrength
+        );
+
+    //Generate Length
+    float length = snoise(float3(noiseCoord * 3 + 3000, Time)) * FieldStrength;
+
+    //Calculate Velocity
+    float2 velocity = dirNoise * length;
+
+    //Set Texturea
+    FlowFieldTexture[id.xy] = float4(velocity, 0, 0);
+}
