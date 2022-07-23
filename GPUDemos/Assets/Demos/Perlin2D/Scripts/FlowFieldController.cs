@@ -1,7 +1,5 @@
-using System;
 using Unity.Mathematics;
 using UnityEngine;
-using UnityEngine.Rendering;
 using Random = UnityEngine.Random;
 
 public class FlowFieldController : MonoBehaviour
