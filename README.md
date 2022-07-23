@@ -30,3 +30,6 @@ An important note is that the GPU Simplex noise library used in this project wer
 
 ### Author
 Wojciech Marek
+
+### Unity Version
+Unity 2021.3.6f1
